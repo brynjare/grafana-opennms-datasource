@@ -254,23 +254,25 @@ export class OpenNMSDatasource {
         value: []
       };
 
+      var currentValues = [];
       // Single-valued?
       if (_.isString(templateVariable.current.value)) {
-        variable.value.push(templateVariable.current.value);
+        currentValues.push(templateVariable.current.value);
       } else {
-        _.each(templateVariable.current.value, function(value) {
-          if (value === "$__all") {
-            _.each(templateVariable.options, function(option) {
-              // "All" is part of the options, so make sure to skip that one
-              if (option.value !== "$__all") {
-                variable.value.push(option.value);
-              }
-            });
-          } else {
-            variable.value.push(value);
-          }
-        });
+        currentValues = templateVariable.current.value;
       }
+      _.each(currentValues, function (value) {
+        if (value === "$__all") {
+          _.each(templateVariable.options, function (option) {
+            // "All" is part of the options, so make sure to skip that one
+            if (option.value !== "$__all") {
+              variable.value.push(option.value);
+            }
+          });
+        } else {
+          variable.value.push(value);
+        }
+      });
 
       variables.push(variable);
     });
