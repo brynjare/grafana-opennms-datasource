@@ -62,20 +62,31 @@ export class OpenNMSDatasource {
       return this.$q.resolve([]);
     }
 
-    var interpolatedQuery = _.first(this.interpolateValue(query));
     var nodeFilterRegex = /nodeFilter\((.*)\)/;
     var nodeResourcesRegex = /nodeResources\((.*)\)/;
+    var filteredNodeQueries = [];
+    var filteredNodeResourceQueries = [];
 
-    if (interpolatedQuery !== undefined) {
-      var nodeFilterQuery = interpolatedQuery.match(nodeFilterRegex);
-      if (nodeFilterQuery) {
-        return this.metricFindNodeFilterQuery(nodeFilterQuery[1]);
-      }
+    _.each(this.interpolateValue(query), function (interpolatedQuery) {
+      if (interpolatedQuery !== undefined) {
+        var nodeFilterQuery = interpolatedQuery.match(nodeFilterRegex);
+        if (nodeFilterQuery) {
+          filteredNodeQueries.push(nodeFilterQuery[1]);
+        }
 
-      var nodeCriteria = interpolatedQuery.match(nodeResourcesRegex);
-      if (nodeCriteria) {
-        return this.metricFindNodeResourceQuery(nodeCriteria[1]);
+        var nodeCriteria = interpolatedQuery.match(nodeResourcesRegex);
+        if (nodeCriteria) {
+          filteredNodeResourceQueries.push(nodeCriteria[1]);
+        }
       }
+    });
+
+    if (filteredNodeQueries.length) {
+      return this.metricFindNodeFilterQuery(filteredNodeQueries.join(' | '));
+    } else if (filteredNodeResourceQueries.length) {
+      // The API only supports a single node for /resources/
+      // Perhaps returning the intersection of resources available for all the selected nodes would make sense?
+      return this.metricFindNodeResourceQuery(_.first(filteredNodeResourceQueries));
     }
 
     return this.$q.resolve([]);
