@@ -170,7 +170,7 @@ export class OpenNMSDatasource {
         }
 
         // Perform variable substitution - may generate additional queries
-        query.source = query.source.concat(self.interpolateSourceVariables(source, (interpolatedSource) => {
+        query.source = query.source.concat(self.interpolateSourceVariables(source, options.scopedVars, (interpolatedSource) => {
           // Calculate the effective resource id after the interpolation
           interpolatedSource.resourceId = OpenNMSDatasource.getRemoteResourceId(interpolatedSource.nodeId, interpolatedSource.resourceId);
           delete interpolatedSource.nodeId;
@@ -188,14 +188,15 @@ export class OpenNMSDatasource {
         };
 
         // Perform variable substitution - may generate additional expressions
-        query.expression = query.expression.concat(self.interpolateExpressionVariables(expression));
+        query.expression = query.expression.concat(self.interpolateExpressionVariables(expression, options.scopedVars));
       } else if (target.type === QueryType.Filter) {
         if (!((target.filter))) {
           return;
         }
 
         // Interpolate the filter parameters
-        var interpolatedFilterParms = self.interpolateVariables(target.filterParameters, _.keys(target.filterParameters));
+        var interpolatedFilterParms = self.interpolateVariables(target.filterParameters, _.keys(target.filterParameters),
+          options.scopedVars);
 
         var filters = _.map(interpolatedFilterParms, (filterParms) => {
           // Build the filter definition
@@ -231,24 +232,30 @@ export class OpenNMSDatasource {
     return query;
   }
 
-  interpolateSourceVariables(source, callback) {
-    return this.interpolateVariables(source, ['nodeId', 'resourceId', 'attribute', 'datasource', 'label'], callback);
+  interpolateSourceVariables(source, scopedVars, callback) {
+    return this.interpolateVariables(source, ['nodeId', 'resourceId', 'attribute', 'datasource', 'label'], scopedVars, callback);
   }
 
-  interpolateExpressionVariables(expression) {
-    return this.interpolateVariables(expression, ['value', 'label']);
+  interpolateExpressionVariables(expression, scopedVars) {
+    return this.interpolateVariables(expression, ['value', 'label'], scopedVars);
   }
 
-  interpolateValue(value) {
-    return _.map(this.interpolateVariables({'value': value}, ['value']), function(entry) {
+  interpolateValue(value, scopedVars) {
+    return _.map(this.interpolateVariables({'value': value}, ['value'], scopedVars), function(entry) {
       return entry.value;
     });
   }
 
-  interpolateVariables(object, attributes, callback) {
+  interpolateVariables(object, attributes, scopedVars, callback) {
+
     // Reformat the variables to work with our interpolate function
     var variables = [];
     _.each(this.templateSrv.variables, function(templateVariable) {
+      var scopedVariable = templateVariable.current;
+      // If this templateVar exists in scopedVars, we need to look at the scoped values instead
+      if (scopedVars && scopedVars[templateVariable.name] !== undefined) {
+        scopedVariable = scopedVars[templateVariable.name];
+      }
       var variable = {
         name: templateVariable.name,
         value: []
@@ -256,10 +263,10 @@ export class OpenNMSDatasource {
 
       var currentValues = [];
       // Single-valued?
-      if (_.isString(templateVariable.current.value)) {
-        currentValues.push(templateVariable.current.value);
+      if (_.isString(scopedVariable.value)) {
+        currentValues.push(scopedVariable.value);
       } else {
-        currentValues = templateVariable.current.value;
+        currentValues = scopedVariable.value;
       }
       _.each(currentValues, function (value) {
         if (value === "$__all") {
